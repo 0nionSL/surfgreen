@@ -7,7 +7,7 @@ Mobile app for surfers — find the best waves at a glance.
 ```
 surfgreen/
 ├── backend/     # FastAPI API (Python 3.11+)
-└── frontend/    # React Native + Expo (coming in Stage 2)
+└── frontend/    # React Native + Expo mobile app
 ```
 
 ## Getting started
