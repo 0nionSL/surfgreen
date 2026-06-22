@@ -1,20 +1,10 @@
 import { api } from './api';
 import { SpotWithForecast } from '../types';
 
-let cache: SpotWithForecast[] | null = null;
-let cacheTime: number = 0;
-const CACHE_DURATION = 5 * 60 * 1000;
-
+// Кэш полностью отключён — всегда свежие данные
 export const fetchSpotsWithForecast = async (): Promise<SpotWithForecast[]> => {
-  const now = Date.now();
-  
-  if (cache && now - cacheTime < CACHE_DURATION) {
-    console.log('📦 Returning cached spots:', cache.length);
-    return cache;
-  }
-  
   try {
-    console.log('🔄 Fetching fresh data...');
+    console.log('🔄 Fetching fresh data (cache disabled)...');
     
     // 1. Получаем споты
     const spotsResponse = await api.get('/api/spots');
@@ -29,16 +19,12 @@ export const fetchSpotsWithForecast = async (): Promise<SpotWithForecast[]> => {
     const spotIds = spots.map((s: any) => s.id).join(',');
     const forecastResponse = await api.get(`/api/forecast/bulk?spot_ids=${spotIds}`);
     const forecastData = forecastResponse.data;
-    
-    console.log('📊 Forecast response:', forecastData);
-    
     const forecasts = forecastData.forecasts || [];
     console.log('📊 Forecasts received:', forecasts.length);
     
     // 3. Объединяем споты с прогнозами
     const result = spots.map((spot: any) => {
       const forecast = forecasts.find((f: any) => f.spot_id === spot.id);
-      
       return {
         ...spot,
         forecast: forecast ? {
@@ -66,10 +52,6 @@ export const fetchSpotsWithForecast = async (): Promise<SpotWithForecast[]> => {
     });
     
     console.log('✅ Transformed spots:', result.length);
-    console.log('📝 First spot:', result[0]);
-    
-    cache = result;
-    cacheTime = now;
     return result;
     
   } catch (error: any) {
