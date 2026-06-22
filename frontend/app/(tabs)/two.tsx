@@ -12,11 +12,22 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { colors } from '../../constants/Colors';
-import { Spot } from '../../types';
+import { SpotWithForecast } from '../../types';
 import { api } from '../../services/api';
+import { useSettingsStore } from '../../store/settingsStore';
+import { useLocation } from '../../hooks/useLocation';
+import { 
+  filterSpotsByLevel, 
+  filterSpotsByLocation,
+  getLevelLabel, 
+  getLevelEmoji,
+  getUniqueCountries,
+  getUniqueRegions,
+} from '../../utils/spotFilter';
+import { addDistanceToSpot, filterSpotsByRadius } from '../../utils/location';
 import SpotCard from '../../components/SpotCard';
 
-const fetchSpotsWithForecast = async () => {
+const fetchSpotsWithForecast = async (): Promise<SpotWithForecast[]> => {
   try {
     const spotsResponse = await api.get('/api/spots');
     const spots = spotsResponse.data;
@@ -66,9 +77,18 @@ const fetchSpotsWithForecast = async () => {
 export default function SpotsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const { 
+    skillLevel, 
+    personalizedSpots, 
+    spotRadius,
+    useRadiusFilter, // 👈 НОВОЕ
+    selectedCountry,
+    selectedRegion,
+  } = useSettingsStore();
+  const { location } = useLocation();
 
   const { 
-    data: spots = [], 
+    data: allSpots = [], 
     isLoading, 
     error, 
     refetch 
@@ -80,19 +100,45 @@ export default function SpotsScreen() {
     retry: 2,
   });
 
+  // Фильтруем по уровню
+  const levelFilteredSpots = useMemo(() => {
+    return filterSpotsByLevel(allSpots, skillLevel, personalizedSpots);
+  }, [allSpots, skillLevel, personalizedSpots]);
+
+  // Фильтруем по локации
+  const locationFilteredSpots = useMemo(() => {
+    return filterSpotsByLocation(levelFilteredSpots, selectedCountry, selectedRegion);
+  }, [levelFilteredSpots, selectedCountry, selectedRegion]);
+
+  // Фильтруем по радиусу (только если включен)
+  const radiusFilteredSpots = useMemo(() => {
+    if (!location || !useRadiusFilter) return locationFilteredSpots;
+    return filterSpotsByRadius(locationFilteredSpots, location, spotRadius);
+  }, [locationFilteredSpots, location, spotRadius, useRadiusFilter]);
+
+  // Добавляем расстояние
+  const spotsWithDistance = useMemo(() => {
+    return radiusFilteredSpots.map((spot) => addDistanceToSpot(spot, location || null));
+  }, [radiusFilteredSpots, location]);
+
+  // Фильтруем по поиску
   const filteredSpots = useMemo(() => {
-    if (!searchQuery.trim()) return spots;
+    if (!searchQuery.trim()) return spotsWithDistance;
     const query = searchQuery.toLowerCase().trim();
-    return spots.filter((spot: Spot) => 
+    return spotsWithDistance.filter((spot: SpotWithForecast & { distance?: number }) => 
       spot.name.toLowerCase().includes(query)
     );
-  }, [spots, searchQuery]);
+  }, [spotsWithDistance, searchQuery]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
   }, [refetch]);
+
+  // Уникальные страны и регионы
+  const countries = useMemo(() => getUniqueCountries(allSpots), [allSpots]);
+  const regions = useMemo(() => getUniqueRegions(allSpots, selectedCountry), [allSpots, selectedCountry]);
 
   if (isLoading) {
     return (
@@ -115,13 +161,31 @@ export default function SpotsScreen() {
     );
   }
 
-  console.log('🔵 SpotsScreen spots:', spots?.length || 0);
+  const levelLabel = getLevelLabel(skillLevel);
+  const levelEmoji = getLevelEmoji(skillLevel);
+  const showPersonalized = personalizedSpots && allSpots.length !== levelFilteredSpots.length;
+  const showLocationFilter = selectedCountry !== null;
+  const showRadiusFilter = location && useRadiusFilter;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>🏄 Все споты</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>🏄 Все споты</Text>
+        {showPersonalized && (
+          <View style={styles.levelBadge}>
+            <Text style={styles.levelBadgeText}>
+              {levelEmoji} {levelLabel}
+            </Text>
+          </View>
+        )}
+      </View>
+      
       <Text style={styles.subtitle}>
         {filteredSpots.length} {filteredSpots.length === 1 ? 'спот' : 'спотов'}
+        {showPersonalized && ` (отфильтровано по уровню)`}
+        {showLocationFilter && ` • ${selectedCountry}${selectedRegion ? `, ${selectedRegion}` : ''}`}
+        {showRadiusFilter && ` • радиус ${spotRadius} км`}
+        {!useRadiusFilter && location && ` • радиус не ограничен`}
       </Text>
 
       <View style={styles.searchContainer}>
@@ -144,14 +208,14 @@ export default function SpotsScreen() {
       {filteredSpots.length === 0 && (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>🔍 Ничего не найдено</Text>
-          <Text style={styles.emptySubText}>Попробуйте изменить запрос</Text>
+          <Text style={styles.emptySubText}>Попробуйте изменить фильтры</Text>
         </View>
       )}
 
       <FlatList
         data={filteredSpots}
         renderItem={({ item }) => <SpotCard spot={item} />}
-        keyExtractor={(item: Spot) => item.id.toString()}
+        keyExtractor={(item: SpotWithForecast) => item.id.toString()}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -181,11 +245,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     padding: 20,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: colors.text,
-    marginBottom: 4,
+  },
+  levelBadge: {
+    backgroundColor: 'rgba(0, 240, 255, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  levelBadgeText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '600',
   },
   subtitle: {
     fontSize: 14,

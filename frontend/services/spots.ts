@@ -3,12 +3,11 @@ import { SpotWithForecast } from '../types';
 
 let cache: SpotWithForecast[] | null = null;
 let cacheTime: number = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 минут
+const CACHE_DURATION = 5 * 60 * 1000;
 
 export const fetchSpotsWithForecast = async (): Promise<SpotWithForecast[]> => {
   const now = Date.now();
   
-  // Возвращаем кэш, если он свежий
   if (cache && now - cacheTime < CACHE_DURATION) {
     console.log('📦 Returning cached spots:', cache.length);
     return cache;
@@ -16,20 +15,30 @@ export const fetchSpotsWithForecast = async (): Promise<SpotWithForecast[]> => {
   
   try {
     console.log('🔄 Fetching fresh data...');
+    
+    // 1. Получаем споты
     const spotsResponse = await api.get('/api/spots');
     const spots = spotsResponse.data;
+    console.log('📊 Spots received:', spots.length);
     
     if (!spots || spots.length === 0) {
       return [];
     }
     
+    // 2. Получаем прогнозы
     const spotIds = spots.map((s: any) => s.id).join(',');
     const forecastResponse = await api.get(`/api/forecast/bulk?spot_ids=${spotIds}`);
     const forecastData = forecastResponse.data;
-    const forecasts = forecastData.forecasts || [];
     
+    console.log('📊 Forecast response:', forecastData);
+    
+    const forecasts = forecastData.forecasts || [];
+    console.log('📊 Forecasts received:', forecasts.length);
+    
+    // 3. Объединяем споты с прогнозами
     const result = spots.map((spot: any) => {
       const forecast = forecasts.find((f: any) => f.spot_id === spot.id);
+      
       return {
         ...spot,
         forecast: forecast ? {
@@ -56,13 +65,16 @@ export const fetchSpotsWithForecast = async (): Promise<SpotWithForecast[]> => {
       };
     });
     
-    // Сохраняем в кэш
+    console.log('✅ Transformed spots:', result.length);
+    console.log('📝 First spot:', result[0]);
+    
     cache = result;
     cacheTime = now;
-    console.log('✅ Cached spots:', result.length);
     return result;
-  } catch (error) {
-    console.error('Error fetching spots with forecast:', error);
+    
+  } catch (error: any) {
+    console.error('❌ Error fetching spots:', error.message);
+    console.error('❌ Error details:', error.response?.data || error);
     throw error;
   }
 };
