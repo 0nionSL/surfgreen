@@ -1,19 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  FlatList, 
-  StyleSheet, 
-  TextInput, 
-  RefreshControl,
-  ActivityIndicator,
-  TouchableOpacity
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { colors } from '../../constants/Colors';
 import { Spot } from '../../types';
 import { api } from '../../services/api';
+import { useFavoriteStore } from '../../store/favoriteStore';
 import SpotCard from '../../components/SpotCard';
 
 const fetchSpotsWithForecast = async () => {
@@ -63,12 +54,12 @@ const fetchSpotsWithForecast = async () => {
   }
 };
 
-export default function SpotsScreen() {
-  const [searchQuery, setSearchQuery] = useState('');
+export default function FavoritesScreen() {
+  const { favorites } = useFavoriteStore();
   const [refreshing, setRefreshing] = useState(false);
 
   const { 
-    data: spots = [], 
+    data: allSpots = [], 
     isLoading, 
     error, 
     refetch 
@@ -80,13 +71,7 @@ export default function SpotsScreen() {
     retry: 2,
   });
 
-  const filteredSpots = useMemo(() => {
-    if (!searchQuery.trim()) return spots;
-    const query = searchQuery.toLowerCase().trim();
-    return spots.filter((spot: Spot) => 
-      spot.name.toLowerCase().includes(query)
-    );
-  }, [spots, searchQuery]);
+  const favoriteSpots = allSpots.filter((spot: Spot) => favorites.includes(spot.id));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -98,7 +83,7 @@ export default function SpotsScreen() {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Загрузка спотов...</Text>
+        <Text style={styles.loadingText}>Загрузка избранного...</Text>
       </View>
     );
   }
@@ -115,42 +100,27 @@ export default function SpotsScreen() {
     );
   }
 
-  console.log('🔵 SpotsScreen spots:', spots?.length || 0);
+  if (favoriteSpots.length === 0) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.emptyTitle}>❤️ Пока пусто</Text>
+        <Text style={styles.emptySubText}>
+          Добавляйте споты в избранное, чтобы они появлялись здесь
+        </Text>
+      </View>
+    );
+  }
+
+  console.log('🔵 FavoritesScreen favoriteSpots:', favoriteSpots?.length || 0);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>🏄 Все споты</Text>
-      <Text style={styles.subtitle}>
-        {filteredSpots.length} {filteredSpots.length === 1 ? 'спот' : 'спотов'}
-      </Text>
-
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={colors.textMuted} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Поиск по названию..."
-          placeholderTextColor={colors.textMuted}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          clearButtonMode="while-editing"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-            <Ionicons name="close-circle" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {filteredSpots.length === 0 && (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>🔍 Ничего не найдено</Text>
-          <Text style={styles.emptySubText}>Попробуйте изменить запрос</Text>
-        </View>
-      )}
-
+      <Text style={styles.title}>⭐ Избранное</Text>
+      <Text style={styles.subtitle}>{favoriteSpots.length} спотов</Text>
+      
       <FlatList
-        data={filteredSpots}
-        renderItem={({ item }) => <SpotCard spot={item} />}
+        data={favoriteSpots}
+        renderItem={({ item }) => <SpotCard spot={item} showFavoriteButton={true} />}
         keyExtractor={(item: Spot) => item.id.toString()}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
@@ -192,29 +162,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginBottom: 16,
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    paddingHorizontal: 12,
-    marginBottom: 16,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    height: 44,
-    color: colors.text,
-    fontSize: 16,
-    paddingVertical: 8,
-  },
-  clearButton: {
-    padding: 4,
-  },
   list: {
     paddingBottom: 20,
   },
@@ -245,19 +192,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 18,
-    marginBottom: 4,
+  emptyTitle: {
+    fontSize: 32,
+    color: colors.text,
+    marginBottom: 8,
   },
   emptySubText: {
+    fontSize: 16,
     color: colors.textMuted,
-    fontSize: 14,
+    textAlign: 'center',
   },
 });

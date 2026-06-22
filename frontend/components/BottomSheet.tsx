@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { colors } from '../constants/Colors';
 import { SpotWithForecast } from '../types';
@@ -9,8 +9,13 @@ interface BottomSheetProps {
 }
 
 const BottomSheet: React.FC<BottomSheetProps> = ({ spots }) => {
-  const perfectSpots = spots.filter((spot) => spot.forecast.color === 'green');
-  const topSpots = perfectSpots.slice(0, 5);
+  const perfectSpots = useMemo(() => {
+    return spots.filter((spot) => spot.forecast.color === 'green');
+  }, [spots]);
+  
+  const topSpots = useMemo(() => {
+    return perfectSpots.slice(0, 5);
+  }, [perfectSpots]);
 
   return (
     <View style={styles.container}>
@@ -49,4 +54,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default BottomSheet; 
+export default BottomSheet;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { SpotWithForecast } from '../types';
-import { getBulkForecast } from '../services/spots';
+import { fetchSpotsWithForecast } from '../services/spots';
 
 // Глобальное состояние
 let globalState = {
@@ -48,7 +48,8 @@ export const useStore = (): AppState => {
       globalState.loading = true;
       notifyListeners();
       try {
-        const forecasts = await getBulkForecast([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        // Используем fetchSpotsWithForecast вместо getBulkForecast
+        const forecasts = await fetchSpotsWithForecast();
         globalState.spotsWithForecast = forecasts;
         globalState.loading = false;
         notifyListeners();

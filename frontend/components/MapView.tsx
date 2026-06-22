@@ -1,14 +1,19 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { StyleSheet } from 'react-native';
 import MapViewLib, { PROVIDER_GOOGLE, Marker } from 'react-native-maps';
 import { SpotWithForecast } from '../types';
 import { colors } from '../constants/Colors';
+import { useRouter } from 'expo-router';
+import { useStore } from '../store/useStore';
 
 interface MapViewProps {
   spots: SpotWithForecast[];
 }
 
-const MapView: React.FC<MapViewProps> = ({ spots }) => {
+const MapView: React.FC<MapViewProps> = memo(({ spots }) => {
+  const router = useRouter();
+  const { setSelectedSpot } = useStore();
+
   const getColor = (color: string) => {
     switch (color) {
       case 'green':
@@ -20,6 +25,11 @@ const MapView: React.FC<MapViewProps> = ({ spots }) => {
       default:
         return colors.textMuted;
     }
+  };
+
+  const handleMarkerPress = (spot: SpotWithForecast) => {
+    setSelectedSpot(spot);
+    router.push(`/spot/${spot.id}`);
   };
 
   console.log('🗺️ MapView rendering with spots:', spots?.length || 0);
@@ -53,10 +63,11 @@ const MapView: React.FC<MapViewProps> = ({ spots }) => {
           title={spot.name}
           description={`Score: ${spot.forecast.score}`}
           pinColor={getColor(spot.forecast.color)}
+          onPress={() => handleMarkerPress(spot)}
         />
       ))}
     </MapViewLib>
   );
-};
+});
 
 export default MapView;

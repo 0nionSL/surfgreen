@@ -5,6 +5,17 @@ export interface Spot {
   region: string;
   latitude: number;
   longitude: number;
+  forecast?: {
+    score: number;
+    color: 'green' | 'yellow' | 'red';
+    swellHeight: number;
+    swellPeriod: number;
+    windSpeed: number;
+    waterTemp: number;
+    wetsuit: string;
+    board: string;
+    conditions: string;
+  };
 }
 
 export interface SurfForecast {
